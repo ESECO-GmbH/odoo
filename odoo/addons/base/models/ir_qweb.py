@@ -35,6 +35,10 @@ _SAFE_QWEB_OPCODES = _EXPR_OPCODES.union(to_opcodes([
     'LOAD_FAST', 'STORE_FAST', 'UNPACK_SEQUENCE',
     'STORE_SUBSCR',
     'LOAD_GLOBAL',
+
+    # Added in 3.11 until Odoo DB was able to be initialized again - probably not safe
+    'RESUME', 'PUSH_NULL', 'CALL', 'KW_NAMES', 'PRECALL', 'POP_JUMP_FORWARD_IF_FALSE', 'BINARY_OP', 'JUMP_BACKWARD',
+    'FORMAT_VALUE', 'BUILD_STRING', 'POP_JUMP_FORWARD_IF_TRUE', 'RETURN_GENERATOR'
 ])) - _BLACKLIST
 
 
