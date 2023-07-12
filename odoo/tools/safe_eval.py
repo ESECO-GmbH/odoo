@@ -114,6 +114,9 @@ _SAFE_OPCODES = _EXPR_OPCODES.union(to_opcodes([
     'LOAD_GLOBAL',
 
     'RERAISE', 'JUMP_IF_NOT_EXC_MATCH',
+
+    # Added in 3.11 until Odoo DB was able to be initialized again - probably not safe
+    'RESUME', 'PUSH_NULL', 'CALL', 'KW_NAMES', 'PRECALL', 'POP_JUMP_FORWARD_IF_FALSE', 'BINARY_OP', 'JUMP_BACKWARD'
 ])) - _BLACKLIST
 
 _logger = logging.getLogger(__name__)
