@@ -532,12 +532,15 @@ class AccountMove(models.Model):
         self.partner_bank_id = bank_ids and bank_ids[0]
 
         # Find the new fiscal position.
-        delivery_partner_id = self._get_invoice_delivery_partner_id()
-        self.fiscal_position_id = self.env['account.fiscal.position'].get_fiscal_position(
-            self.partner_id.id, delivery_id=delivery_partner_id)
+        self.fiscal_position_id = self._get_computed_fiscal_position()
         self._recompute_dynamic_lines()
         if warning:
             return {'warning': warning}
+
+    def _get_computed_fiscal_position(self):
+        delivery_partner_id = self._get_invoice_delivery_partner_id()
+        return self.env['account.fiscal.position'].get_fiscal_position(
+            self.partner_id.id, delivery_id=delivery_partner_id)
 
     @api.onchange('date', 'currency_id')
     def _onchange_currency(self):
@@ -2240,6 +2243,9 @@ class AccountMove(models.Model):
             if line.partner_id != self.partner_id.commercial_partner_id:
                 line.partner_id = self.partner_id.commercial_partner_id
 
+            if not line._cache.get('tax_ids'):
+                line.tax_ids = line._get_computed_taxes_after_fpos()
+
             line.date = self.date
             line.recompute_tax_line = True
             line.currency_id = self.currency_id
@@ -2302,6 +2308,8 @@ class AccountMove(models.Model):
             vals.pop('invoice_line_ids', None)
 
             move = self_ctx.new(vals)
+            # autocomplete of account and tax requires fiscal position to be set
+            move.fiscal_position_id = move._get_computed_fiscal_position()
             new_vals_list.append(move._move_autocomplete_invoice_lines_values())
 
         return new_vals_list
@@ -4047,6 +4055,12 @@ class AccountMoveLine(models.Model):
 
         return tax_ids
 
+    def _get_computed_taxes_after_fpos(self):
+        taxes = self._get_computed_taxes()
+        if taxes and self.move_id.fiscal_position_id:
+            taxes = self.move_id.fiscal_position_id.map_tax(taxes)
+        return taxes
+
     def _get_computed_uom(self):
         self.ensure_one()
         if self.product_id:
@@ -4358,10 +4372,7 @@ class AccountMoveLine(models.Model):
 
             line.name = line._get_computed_name()
             line.account_id = line._get_computed_account()
-            taxes = line._get_computed_taxes()
-            if taxes and line.move_id.fiscal_position_id:
-                taxes = line.move_id.fiscal_position_id.map_tax(taxes)
-            line.tax_ids = taxes
+            line.tax_ids = line._get_computed_taxes_after_fpos()
             line.product_uom_id = line._get_computed_uom()
             line.price_unit = line._get_computed_price_unit()
 
@@ -4370,10 +4381,7 @@ class AccountMoveLine(models.Model):
         ''' Recompute the 'price_unit' depending of the unit of measure. '''
         if self.display_type in ('line_section', 'line_note'):
             return
-        taxes = self._get_computed_taxes()
-        if taxes and self.move_id.fiscal_position_id:
-            taxes = self.move_id.fiscal_position_id.map_tax(taxes)
-        self.tax_ids = taxes
+        self.tax_ids = self._get_computed_taxes_after_fpos()
         self.price_unit = self._get_computed_price_unit()
 
     @api.onchange('account_id')
@@ -4383,12 +4391,7 @@ class AccountMoveLine(models.Model):
         '''
         for line in self:
             if not line.display_type and (line.account_id.tax_ids or not line.tax_ids):
-                taxes = line._get_computed_taxes()
-
-                if taxes and line.move_id.fiscal_position_id:
-                    taxes = line.move_id.fiscal_position_id.map_tax(taxes)
-
-                line.tax_ids = taxes
+                line.tax_ids = line._get_computed_taxes_after_fpos()
 
     def _onchange_balance(self):
         for line in self:
